@@ -1,0 +1,47 @@
+export const Hero = () => {
+  const cards = [
+    {
+      title: "Total Resumes",
+      value: "12",
+      icon: "📄",
+    },
+    {
+      title: "Analyzed Resumes",
+      value: "10",
+      icon: "✅",
+    },
+    {
+      title: "Pending Resumes",
+      value: "2",
+      icon: "⏳",
+    },
+  ];
+  return (
+    <div className="w-full">
+      <div>
+        <h2 className="text-4xl font-bold text-indigo-500">
+          CV Analyzer Dashboard
+        </h2>
+        <p className="text-slate-700 mt-3">
+          Manage and analyze candidate resumes with{" "}
+          <span className="text-indigo-500 font-semibold">AI-powered</span>{" "}
+          extraction
+        </p>
+      </div>
+      <div className="flex gap-4 mt-12 w-full items-center">
+        {cards.map((card, idx) => (
+          <div
+            key={idx}
+            className="flex bg-white h-28 w-76 rounded-lg p-4  justify-between items-center border-l-6 border-indigo-400 shadow-md"
+          >
+            <div className="flex flex-col items-start gap-3 text-slate-950 ">
+              <div className="font-bold text-xl">{card.title}</div>
+              <div className="text-xl ">{card.value}</div>
+            </div>
+            <div className="text-3xl text-shadow-md">{card.icon}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
