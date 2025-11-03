@@ -1,59 +1,128 @@
-import { useCallback } from "react"
-import { useDropzone } from "react-dropzone"
-import { Upload } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { useState, type ChangeEvent } from "react";
+import { Button } from "@/components/ui/button";
+import client from "../api/client";
 
 export default function UploadResume() {
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    console.log("Uploaded file:", acceptedFiles[0])
-    // TODO: send file to backend for parsing
-  }, [])
+  const [file, setFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [responseText, setResponseText] = useState("");
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    multiple: false,
-    accept: {
-      "application/pdf": [".pdf"],
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"]
-    },
-    maxSize: 5 * 1024 * 1024, // 5MB
-  })
+  // 🧠 Handle file selection
+  function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) return;
+
+    if (selectedFile.type !== "application/pdf") {
+      alert("Please upload a valid PDF file.");
+      e.target.value = ""; // reset invalid selection
+      return;
+    }
+
+    setFile(selectedFile);
+  }
+
+  // 📤 Upload file to backend (as FormData)
+  async function handleUpload() {
+    if (!file) {
+      alert("Please select a PDF first.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("hrUserId", "2"); // Example
+
+    setUploading(true);
+    setProgress(0);
+    setResponseText("");
+
+    // 🔁 Simulated slow progress (takes ~20s to reach 90%)
+    const totalDuration = 20000; // 20 seconds
+    const stepTime = 200; // every 0.2s
+    const steps = totalDuration / stepTime;
+    const increment = 90 / steps;
+
+    const fakeProgress = setInterval(() => {
+      setProgress((prev) => {
+        if (prev < 90) return Math.min(prev + increment, 90);
+        return prev;
+      });
+    }, stepTime);
+
+    try {
+      const response = await client.post(
+        "http://localhost:8080/api/upload/resume",
+        formData,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      );
+
+      // ✅ Stop fake progress and complete bar smoothly
+      clearInterval(fakeProgress);
+      setProgress(100);
+
+      console.log("✅ Backend response:", response.data);
+      setResponseText(JSON.stringify(response.data, null, 2));
+
+      // 🧹 Reset input and progress after success
+      setTimeout(() => {
+        setFile(null);
+        const input = document.querySelector<HTMLInputElement>(
+          'input[type="file"]'
+        );
+        if (input) input.value = ""; // remove file name from input
+        setProgress(0);
+        setResponseText("");
+      }, 2500);
+    } catch (error) {
+      clearInterval(fakeProgress);
+      console.error("❌ Upload failed:", error);
+      alert("Failed to upload file.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   return (
-    <div className="flex flex-col items-center justify-center h-full ">
-      <div className="max-w-2xl w-full bg-gray-50 p-4 shadow-sm rounded-2xl border border-gray-100">
-        <h1 className="text-3xl font-bold text-center text-indigo-600 mb-2">Upload Resume</h1>
-        <p className="text-gray-600 text-center ">
-          Upload a candidate's resume to extract and analyze their information
-        </p>
-        <p className="text-center mb-6 text-gray-500">(Upload a PDF or DOCX file (max 5MB))</p>
+    <div className="p-6 max-w-3xl mx-auto">
+      <div className="space-y-5 bg-white p-6 rounded-2xl shadow-md relative overflow-hidden">
+        <h2 className="text-2xl font-bold text-center text-indigo-600 mb-4">
+          Upload Resume PDF
+        </h2>
 
-        <Card className="border-dashed border-2 border-gray-300 bg-gray-50 hover:bg-gray-100 transition">
-          <CardContent
-            {...getRootProps()}
-            className="flex flex-col items-center justify-center py-16 cursor-pointer"
-          >
-            <input {...getInputProps()} />
-            <Upload className="w-10 h-10 text-gray-400 mb-3" />
-            {isDragActive ? (
-              <p className="text-gray-600 font-medium">Drop the resume here...</p>
-            ) : (
-              <>
-                <p className="text-gray-700 font-medium">Drop your resume here</p>
-                <p className="text-gray-400 text-sm mt-1">or click to browse</p>
-              </>
-            )}
-          </CardContent>
-        </Card>
+        {/* File Input */}
+        <input
+          type="file"
+          accept="application/pdf"
+          onChange={handleFileChange}
+          disabled={uploading}
+          className="w-full p-3 border border-indigo-300 rounded cursor-pointer hover:border-indigo-500"
+        />
 
+        {/* Progress Bar */}
+        {uploading && (
+          <div className="mt-4">
+            <div className="relative w-full h-3 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                className="absolute left-0 top-0 h-full bg-gradient-to-r from-indigo-400 to-indigo-600 transition-all duration-300 ease-linear"
+                style={{ width: `${progress}%` }}
+              ></div>
+            </div>
+            <p className="mt-2 text-sm text-gray-600">
+              Uploading... {Math.round(progress)}%
+            </p>
+          </div>
+        )}
+
+        {/* Upload Button */}
         <Button
-          variant="default"
-          className="w-full mt-6 bg-indigo-400 hover:bg-indigo-500 text-white text-md font-semibold py-6"
+          onClick={handleUpload}
+          disabled={!file || uploading}
+          className="w-full bg-indigo-600 hover:bg-indigo-700"
         >
-          <Upload className="mr-2 h-5 w-5" /> Parse Resume
+          {uploading ? "Uploading..." : "Upload & Parse"}
         </Button>
       </div>
     </div>
-  )
+  );
 }
