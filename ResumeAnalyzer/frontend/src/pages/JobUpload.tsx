@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Briefcase, FileText, Tag, CheckCircle2, Loader2 } from "lucide-react";
-import { saveJob } from "../api/jobs";
+import toast from "react-hot-toast";
+import client from "../api/client";
+import { useAuthStore } from "@/store/authStore"; // ✅ new import
 
 interface JobPayload {
   hrUserId: number;
@@ -13,7 +15,7 @@ interface JobPayload {
 
 export default function JobUpload() {
   const [formData, setFormData] = useState<JobPayload>({
-    hrUserId: 2,
+    hrUserId: 0, // will be overwritten
     jobTitle: "",
     jobDescription: "",
     skills: "",
@@ -23,6 +25,7 @@ export default function JobUpload() {
   const [uploading, setUploading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
+  const { hrId, isAuthenticated } = useAuthStore(); // ✅ read from Zustand
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -58,17 +61,27 @@ export default function JobUpload() {
   const handleSubmit = async () => {
     if (!validateForm()) return;
 
+    if (!isAuthenticated || !hrId) {
+      toast.error("Session expired — please sign in again.");
+      setError("Authentication required");
+      return;
+    }
+
     setUploading(true);
     setError("");
     setSuccess(false);
 
     try {
-      const data = await saveJob(formData);
-      console.log("✅ Job created successfully:", data);
+      const payload = { ...formData, hrUserId: hrId };
+      const response = await client.post("/jobs/create", payload);
+
+      console.log("✅ Job created successfully:", response.data);
+      toast.success("Job posted successfully!");
       setSuccess(true);
+
       setTimeout(() => {
         setFormData({
-          hrUserId: 2,
+          hrUserId: hrId,
           jobTitle: "",
           jobDescription: "",
           skills: "",
@@ -78,18 +91,21 @@ export default function JobUpload() {
       }, 2000);
     } catch (err: any) {
       console.error("❌ Upload failed:", err);
-      setError(
+      const message =
         err?.response?.data?.message ||
-          err?.message ||
-          "Failed to create job. Please try again."
-      );
+        err?.response?.data?.error ||
+        err?.message ||
+        "Failed to create job. Please try again.";
+
+      setError(message);
+      toast.error(message);
     } finally {
       setUploading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-10 px-4">
+    <div className="min-h-screen  ">
       <div className="max-w-2xl mx-auto bg-white shadow-sm rounded-2xl border border-gray-100 p-8 transition-all duration-300">
         {/* Header */}
         <div className="text-center mb-8">
@@ -221,26 +237,6 @@ export default function JobUpload() {
               <option value="Closed">Closed</option>
               <option value="Draft">Draft</option>
             </select>
-          </div>
-
-          {/* HR ID */}
-          <div>
-            <label
-              htmlFor="hrUserId"
-              className="text-sm font-semibold text-gray-700 mb-1 block"
-            >
-              HR User ID
-            </label>
-            <input
-              id="hrUserId"
-              name="hrUserId"
-              type="number"
-              value={formData.hrUserId}
-              onChange={handleChange}
-              disabled={uploading}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all disabled:bg-gray-100 disabled:cursor-not-allowed"
-              min={1}
-            />
           </div>
 
           {/* Submit Button */}

@@ -1,20 +1,19 @@
 package com.resumeAnlayazer.backend.dto;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-import lombok.Builder;
 import lombok.Data;
 import org.springframework.web.multipart.MultipartFile;
 
 @Data
-public class UploadTextRequestDTO {
+public class UploadedTextRequestDto {
+
     @NotNull(message = "HR User ID is required")
     private Long hrUserId;
 
-    @NotBlank(message = "File name is required")
-    private String fileName;
+    @NotNull(message = "File is required")
+    private MultipartFile file;
 
-    @NotBlank(message = "Extracted text must not be blank")
-    private String extractedText;
-
+    // Optional fields — filled after extraction inside service
+    private String fileName;   // extracted from file.getOriginalFilename()
+    private String extractedText; // text extracted from the PDF
 }

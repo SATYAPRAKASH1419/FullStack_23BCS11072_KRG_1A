@@ -10,7 +10,10 @@ import com.resumeAnlayazer.backend.repository.HRUserRepository;
 import com.resumeAnlayazer.backend.repository.UploadedTextRepository;
 import com.resumeAnlayazer.backend.service.AIService;
 import com.resumeAnlayazer.backend.service.UploadedTextService;
+
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.stereotype.Service;
@@ -18,11 +21,13 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class UploadedTextServiceImpl implements UploadedTextService {
 
     private final UploadedTextRepository uploadedTextRepository;
@@ -30,7 +35,7 @@ public class UploadedTextServiceImpl implements UploadedTextService {
     private final AIService aiService;
     private final AIResponseRepository aiResponseRepository;
 
-    // ✅ Step 1: Upload and Extract
+    // Step 1: Upload and Extract PDF
     @Override
     public UploadedTextResponseDto uploadAndExtract(Long hrUserId, MultipartFile file) {
         HRUserModel hrUser = hrUserRepository.findById(hrUserId)
@@ -39,10 +44,16 @@ public class UploadedTextServiceImpl implements UploadedTextService {
         String extractedText;
         try (InputStream inputStream = file.getInputStream();
              PDDocument document = PDDocument.load(inputStream)) {
+
             PDFTextStripper stripper = new PDFTextStripper();
             extractedText = stripper.getText(document);
+
+            if (extractedText == null || extractedText.trim().isEmpty()) {
+                throw new IOException("Failed to extract text from PDF file: " + file.getOriginalFilename());
+            }
+
         } catch (IOException e) {
-            throw new RuntimeException("Failed to extract text from PDF: " + e.getMessage());
+            throw new RuntimeException("PDF extraction failed: " + e.getMessage());
         }
 
         UploadedTextModel upload = UploadedTextModel.builder()
@@ -50,6 +61,7 @@ public class UploadedTextServiceImpl implements UploadedTextService {
                 .fileName(file.getOriginalFilename())
                 .extractedText(extractedText)
                 .status("PENDING")
+                .createdAt(Instant.now())
                 .build();
 
         UploadedTextModel saved = uploadedTextRepository.save(upload);
@@ -58,10 +70,10 @@ public class UploadedTextServiceImpl implements UploadedTextService {
         AIResponseModel aiResponse = null;
         try {
             aiResponse = aiService.analyzeResume(saved.getId());
-            saved.setStatus("COMPLETED");
+            saved.setStatus("ANALYZED");
         } catch (Exception e) {
             saved.setStatus("FAILED");
-            System.err.println("AI analysis failed for uploadedTextId=" + saved.getId() + ": " + e.getMessage());
+            log.error(" AI analysis failed for uploadedTextId={} : {}", saved.getId(), e.getMessage());
         }
 
         uploadedTextRepository.save(saved);
@@ -76,7 +88,7 @@ public class UploadedTextServiceImpl implements UploadedTextService {
                 .build();
     }
 
-    // ✅ Step 2: Get Single Upload
+    // Step 2: Get a single uploaded resume
     @Override
     public UploadedTextResponseDto getUploadedTextById(Long id) {
         UploadedTextModel upload = uploadedTextRepository.findById(id)
@@ -88,13 +100,13 @@ public class UploadedTextServiceImpl implements UploadedTextService {
                 .fileName(upload.getFileName())
                 .status(upload.getStatus())
                 .createdAt(upload.getCreatedAt())
-                .aiJson(aiResponseRepository.findByUploadedText_id(upload.getId())
+                .aiJson(aiResponseRepository.findByUploadedText_Id(upload.getId())
                         .map(AIResponseModel::getAiJson)
                         .orElse(null))
                 .build();
     }
 
-    // ✅ Step 3: Re-run or trigger AI manually
+    // Step 3: Re-run or manually trigger AI again
     @Override
     public UploadedTextResponseDto analyzeWithAI(Long uploadedTextId) {
         UploadedTextModel upload = uploadedTextRepository.findById(uploadedTextId)
@@ -114,7 +126,7 @@ public class UploadedTextServiceImpl implements UploadedTextService {
                 .build();
     }
 
-    // ✅ Step 4: Get all uploaded resumes for a specific HR
+    // Step 4: Get all resumes uploaded by a specific HR
     @Override
     public List<UploadedTextResponseDto> getAllResumesByHr(Long hrUserId) {
         return uploadedTextRepository.findByHrUserId(hrUserId)
@@ -125,7 +137,7 @@ public class UploadedTextServiceImpl implements UploadedTextService {
                         .fileName(upload.getFileName())
                         .status(upload.getStatus())
                         .createdAt(upload.getCreatedAt())
-                        .aiJson(aiResponseRepository.findByUploadedText_id(upload.getId())
+                        .aiJson(aiResponseRepository.findByUploadedText_Id(upload.getId())
                                 .map(AIResponseModel::getAiJson)
                                 .orElse(null))
                         .build())
