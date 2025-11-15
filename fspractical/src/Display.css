@@ -1,0 +1,13 @@
+.inside{    
+    height: 200px;
+    width: 500px;
+    background-color: aqua;
+    color:black;
+    font-size:28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    border-radius: 10%;
+    font-family: 'Trebuchet MS', 'Lucida Sans Unicode', 'Lucida Grande', 'Lucida Sans', Arial, sans-serif;
+}
